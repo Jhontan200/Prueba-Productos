@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario y Clientes - Firebase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e5e7eb;
+            color: #1f2937;
+        }
+    </style>
+</head>
+
+<body class="p-6">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, setLogLevel, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase setup
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+            apiKey: "AIzaSyCOy1byIiEr68p6vqp868YCPc4VQv5fu_o",
+            authDomain: "productos-13b88.firebaseapp.com",
+            databaseURL: "https://productos-13b88-default-rtdb.firebaseio.com",
+            projectId: "productos-13b88",
+            storageBucket: "productos-13b88.firebasestorage.app",
+            messagingSenderId: "332240841983",
+            appId: "1:332240841983:web:4137eddc2cb44b1582b0ca",
+            measurementId: "G-8PB84XX1Y5"
+        };
+
+        setLogLevel('debug');
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let userId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Autenticación anónima para un acceso sencillo y directo
+                await signInAnonymously(auth);
+                userId = auth.currentUser.uid;
+                document.getElementById('userIdDisplay').textContent = userId;
+                console.log("Authenticated with user ID:", userId);
+
+                // Set up real-time listeners for both collections
+                setupRealtimeListeners();
+            } catch (error) {
+                console.error("Error during authentication:", error);
+            }
+        });
+
+        // Function to set up real-time listeners for data
+        function setupRealtimeListeners() {
+            if (!userId) {
+                console.log("Waiting for user to be authenticated...");
+                return;
+            }
+
+            const productsCollection = collection(db, `/artifacts/${appId}/users/${userId}/productos`);
+            const clientesCollection = collection(db, `/artifacts/${appId}/users/${userId}/clientes`);
+
+            // Listen for real-time changes in the 'productos' collection
+            onSnapshot(query(productsCollection), (snapshot) => {
+                const productList = document.getElementById('productList');
+                productList.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const li = document.createElement('li');
+                    li.className = 'p-3 my-2 bg-white rounded-lg shadow-sm flex items-center justify-between';
+
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'flex space-x-2';
+
+                    const editButton = document.createElement('button');
+                    editButton.textContent = 'Editar';
+                    editButton.className = 'text-blue-500 hover:text-blue-700 font-bold px-2';
+                    editButton.onclick = () => editProduct(doc.id, data);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Eliminar';
+                    deleteButton.className = 'text-red-500 hover:text-red-700 font-bold px-2';
+                    deleteButton.onclick = () => deleteData('productos', doc.id);
+
+                    li.appendChild(document.createTextNode(`Nombre: ${data.nombre}, Precio: $${data.precio}`));
+                    actionsDiv.appendChild(editButton);
+                    actionsDiv.appendChild(deleteButton);
+                    li.appendChild(actionsDiv);
+                    productList.appendChild(li);
+                });
+            });
+
+            // Listen for real-time changes in the 'clientes' collection
+            onSnapshot(query(clientesCollection), (snapshot) => {
+                const clientList = document.getElementById('clientList');
+                clientList.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const li = document.createElement('li');
+                    li.className = 'p-3 my-2 bg-white rounded-lg shadow-sm flex items-center justify-between';
+
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'flex space-x-2';
+
+                    const editButton = document.createElement('button');
+                    editButton.textContent = 'Editar';
+                    editButton.className = 'text-blue-500 hover:text-blue-700 font-bold px-2';
+                    editButton.onclick = () => editClient(doc.id, data);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Eliminar';
+                    deleteButton.className = 'text-red-500 hover:text-red-700 font-bold px-2';
+                    deleteButton.onclick = () => deleteData('clientes', doc.id);
+
+                    li.appendChild(document.createTextNode(`Nombre: ${data.nombre}, Email: ${data.email}`));
+                    actionsDiv.appendChild(editButton);
+                    actionsDiv.appendChild(deleteButton);
+                    li.appendChild(actionsDiv);
+                    clientList.appendChild(li);
+                });
+            });
+        }
+
+        // Functions to add data
+        async function addProducto(nombre, precio) {
+            if (!userId) {
+                console.error("User not authenticated.");
+                return;
+            }
+            try {
+                await addDoc(collection(db, `/artifacts/${appId}/users/${userId}/productos`), {
+                    nombre: nombre,
+                    precio: Number(precio)
+                });
+                console.log("Producto agregado con éxito!");
+            } catch (error) {
+                console.error("Error al agregar producto:", error);
+            }
+        }
+
+        async function addCliente(nombre, email) {
+            if (!userId) {
+                console.error("User not authenticated.");
+                return;
+            }
+            try {
+                await addDoc(collection(db, `/artifacts/${appId}/users/${userId}/clientes`), {
+                    nombre: nombre,
+                    email: email
+                });
+                console.log("Cliente agregado con éxito!");
+            } catch (error) {
+                console.error("Error al agregar cliente:", error);
+            }
+        }
+
+        // Function to delete data
+        async function deleteData(collectionName, docId) {
+            if (!userId) {
+                console.error("User not authenticated.");
+                return;
+            }
+            try {
+                await deleteDoc(doc(db, `/artifacts/${appId}/users/${userId}/${collectionName}`, docId));
+                console.log("Documento eliminado con éxito!");
+            } catch (error) {
+                console.error("Error al eliminar documento:", error);
+            }
+        }
+
+        // Function to edit product
+        async function editProduct(docId, currentData) {
+            const newName = prompt("Ingresa el nuevo nombre del producto:", currentData.nombre);
+            if (newName === null) return; // User cancelled
+
+            const newPrice = prompt("Ingresa el nuevo precio del producto:", currentData.precio);
+            if (newPrice === null) return; // User cancelled
+
+            if (newName && newPrice) {
+                try {
+                    await updateDoc(doc(db, `/artifacts/${appId}/users/${userId}/productos`, docId), {
+                        nombre: newName,
+                        precio: Number(newPrice)
+                    });
+                    console.log("Producto actualizado con éxito!");
+                } catch (error) {
+                    console.error("Error al actualizar producto:", error);
+                }
+            }
+        }
+
+        // Function to edit client
+        async function editClient(docId, currentData) {
+            const newName = prompt("Ingresa el nuevo nombre del cliente:", currentData.nombre);
+            if (newName === null) return; // User cancelled
+
+            const newEmail = prompt("Ingresa el nuevo email del cliente:", currentData.email);
+            if (newEmail === null) return; // User cancelled
+
+            if (newName && newEmail) {
+                try {
+                    await updateDoc(doc(db, `/artifacts/${appId}/users/${userId}/clientes`, docId), {
+                        nombre: newName,
+                        email: newEmail
+                    });
+                    console.log("Cliente actualizado con éxito!");
+                } catch (error) {
+                    console.error("Error al actualizar cliente:", error);
+                }
+            }
+        }
+
+        // Event listeners for forms
+        document.getElementById('productForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('productName').value;
+            const precio = document.getElementById('productPrice').value;
+            if (nombre && precio) {
+                addProducto(nombre, precio);
+                document.getElementById('productForm').reset();
+            }
+        });
+
+        document.getElementById('clientForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('clientName').value;
+            const email = document.getElementById('clientEmail').value;
+            if (nombre && email) {
+                addCliente(nombre, email);
+                document.getElementById('clientForm').reset();
+            }
+        });
+
+    </script>
+
+    <div class="max-w-4xl mx-auto bg-gray-200 p-8 rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Sistema de Inventario y Clientes 2.0</h1>
+        <p class="text-center text-sm text-gray-500 mb-8">ID de Usuario: <span id="userIdDisplay"
+                class="font-mono text-gray-700"></span></p>
+
+        <!-- Product Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Productos</h2>
+            <form id="productForm" class="flex flex-col md:flex-row md:space-x-4 mb-6">
+                <input type="text" id="productName" placeholder="Nombre del producto" required
+                    class="flex-1 p-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="number" id="productPrice" placeholder="Precio" required step="0.01"
+                    class="flex-1 p-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 md:mt-0">
+                <button type="submit"
+                    class="bg-blue-600 text-white font-bold py-3 px-6 rounded-md hover:bg-blue-700 transition-colors mt-2 md:mt-0">Agregar
+                    Producto</button>
+            </form>
+            <ul id="productList" class="space-y-2">
+                <!-- Data will be populated here -->
+            </ul>
+        </div>
+
+        <!-- Client Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Clientes</h2>
+            <form id="clientForm" class="flex flex-col md:flex-row md:space-x-4 mb-6">
+                <input type="text" id="clientName" placeholder="Nombre del cliente" required
+                    class="flex-1 p-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="clientEmail" placeholder="Email" required
+                    class="flex-1 p-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 mt-2 md:mt-0">
+                <button type="submit"
+                    class="bg-blue-600 text-white font-bold py-3 px-6 rounded-md hover:bg-blue-700 transition-colors mt-2 md:mt-0">Agregar
+                    Cliente</button>
+            </form>
+            <ul id="clientList" class="space-y-2">
+                <!-- Data will be populated here -->
+            </ul>
+        </div>
+    </div>
+
+</body>
+
+</html>
